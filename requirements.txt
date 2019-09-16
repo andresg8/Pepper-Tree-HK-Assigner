@@ -1,0 +1,4 @@
+pickle
+openpyxl
+threading
+tika
