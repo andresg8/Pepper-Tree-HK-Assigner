@@ -10,4 +10,4 @@ script:
   - cd ./src
   - pytest
 after_success:
- - xvfb-run python hk_pdf_processor.py
+ - xvfb-run -a python hk_pdf_processor.py
