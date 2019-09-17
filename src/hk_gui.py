@@ -178,7 +178,7 @@ class OrderList(Frame):
 
 class HousekeeperOrderer(Frame):
     def __init__(self, master):
-        file_name = "bg" + str(randint(1, 2)) + ".gif"
+        file_name = "res/bg" + str(randint(1, 2)) + ".gif"
         self.photo = PhotoImage(file = file_name)
         Frame.__init__(self, master, width = 750, height = 700)
         self.grid_propagate(0)

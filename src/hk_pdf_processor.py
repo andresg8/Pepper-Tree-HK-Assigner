@@ -127,12 +127,12 @@ def queuePrintJob(pageNum, ws, wb):
     ws["Q1"] = pageNum
     wb.save('../Pre-Room Check List' + str(pageNum) + '.xlsx')
     wb.close()
-    wb = load_workbook('Pre-Room Check List.xlsx')
+    wb = load_workbook('res/Pre-Room Check List.xlsx')
     ws = wb["Sheet1"]
 
 if __name__ == "__main__":
     try:
-        AHK = pickle.load(open("housekeepers.p", 'rb'))
+        AHK = pickle.load(open("res/housekeepers.p", 'rb'))
         allHouseKeepers = AHK.housekeepers
     except:
         allHouseKeepers = []
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     i = 0
     for hk in roomsPerHK:
         name = houseKeepers[i].name
-        wb = load_workbook("HK Template.xlsx")
+        wb = load_workbook("res/HK Template.xlsx")
         ws = wb["Sheet1"]
         aggregateRoomScore = 0
         ws["A1"] = name
@@ -363,7 +363,7 @@ if __name__ == "__main__":
         wb.close()
 
 
-    wb = load_workbook('Pre-Room Check List.xlsx')
+    wb = load_workbook('res/Pre-Room Check List.xlsx')
     ws = wb["Sheet1"]
 
     letters = "BCDEFGHIJKL" 
@@ -396,7 +396,7 @@ if __name__ == "__main__":
             ws[letters[i] + "2"].fill = noFill
         queuePrintJob(pageNum, ws, wb)
 
-    wb = load_workbook('Laundry Min.xlsx')
+    wb = load_workbook('res/Laundry Min.xlsx')
     wb.save('../Laundry Min.xlsx')
     wb.close()
 
@@ -404,6 +404,6 @@ if __name__ == "__main__":
 
 
     AHK = AllHouseKeepers(allHouseKeepers)
-    pickle.dump(AHK, open("housekeepers.p", 'wb'))
+    pickle.dump(AHK, open("res/housekeepers.p", 'wb'))
     print("done!")
     sys.exit()
