@@ -16,6 +16,8 @@ Distribution of rooms is kept even based on the type of cleaning a room requires
 
 The GUI component to the HK Assigner provides point and click usability to the software, the housekeepers scheduled to work are selected by name and the program is run with the click of a simple GO! button. 
 
+![Image of GUI](https://github.com/andresg8/Pepper-Tree-HK-Assigner/blob/master/src/res/gui_image.PNG)
+
 While there exist features in RoomMaster to aid in housekeeping management, they are minimal and what is there is not friendly to the busy schedule and workload of a housekeeper. 
 
 This program aimed and has succeeded for months now to simplify the tedious 30 minute task of manually assigning rooms to housekeepers into a mere couple of mouse clicks. 
@@ -23,5 +25,7 @@ This program aimed and has succeeded for months now to simplify the tedious 30 m
 Removing the human error, rooms are never overlooked and left dirty due to lack of assignment, and the distribution of rooms is never biased guaranteeing fairness. 
 
 Each housekeeper is provided an excel sheet (printed) with their name on it and the rooms they're meant to clean during their shift. C/O rooms that expect an arrival on the same day are highlighted yellow and TT rooms that have had extended stays (4 nights) are highlighted blue. The color coding serves as reminders to either prioritize efforts or change linens respectively. 
+
+![Image of HK Sheet](https://github.com/andresg8/Pepper-Tree-HK-Assigner/blob/master/src/res/hk_sheet_example.PNG)
 
 The head housekeeper is provided pre-room checklist excel sheets so they can grade the cleanliness of C/O rooms by each housekeeper. 
