@@ -5,7 +5,7 @@
 
 [![Build Status](https://travis-ci.org/andresg8/Pepper-Tree-HK-Assigner.svg?branch=master)](https://travis-ci.org/andresg8/Pepper-Tree-HK-Assigner)
 
-Housekeeping Assigner developed for the Hotel Pepper Tree, Anaheim CA.
+Housekeeping Assigner developed for the Hotel Pepper Tree, Anaheim CA. (714)774-7370
 
 Developed entirely in Python and using tika and openpyxl libraries under licenses above. 
 
