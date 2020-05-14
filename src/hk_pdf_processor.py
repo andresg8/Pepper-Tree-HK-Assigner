@@ -1,7 +1,7 @@
 from datetime import *
 from tkinter import *
 from random import *
-from hk_gui import *
+from hkGUI import *
 from loading import *
 from openpyxl import *
 from openpyxl.styles import *
@@ -13,6 +13,7 @@ import os
 import sys
 dtoday = datetime.today()
 today = date(dtoday.year, dtoday.month, dtoday.day)
+wday = dtoday.weekday()
 
 class HouseKeeper:
     def __init__(self, name, prevWorkDate, priority):
@@ -30,13 +31,14 @@ class AllHouseKeepers:
 
 
 class Room:
-    def __init__(self, roomNumber, roomType, cleanType = "C/O", arrival = "", longStay = "", checkInDate =""):
+    def __init__(self, roomNumber, roomType, cleanType = "C/O", arrival = "", longStay = "", checkInDate = "", checkFT = ""):
         self.roomNumber = roomNumber
         self.roomType = roomType
         self.cleanType = cleanType
         self.arrival = arrival
         self.longStay = longStay
         self.checkInDate = checkInDate
+        self.checkFT = checkFT
 
     def checkBlueness(self):
         '''
@@ -47,9 +49,22 @@ class Room:
         try: CIDate = date(int(date_split[2]), int(date_split[0]), int(date_split[1]))
         except: print(date_split) 
         dif = today - CIDate
-        if self.cleanType == "Stay" and not dif.days % 4:
+        if self.cleanType == "Stay" and not dif.days % 4 and dif.days > 1:
             ###print("FOUND ONE:", self.roomNumber)
             self.longStay = True
+
+    def checkOrangeness(self):
+        '''
+        Does a manual check on whether or not the room needs the sheets changed
+        based on the check-in date compared to today's date. 
+        '''
+        date_split = self.checkInDate.split("/") # [MONTH, DAY, YEAR]
+        try: CIDate = date(int(date_split[2]), int(date_split[0]), int(date_split[1]))
+        except: print(date_split) 
+        dif = today - CIDate
+        if self.cleanType == "Stay" and dif.days % 4 == 1 and dif.days > 1:
+            ###print("FOUND ONE:", self.roomNumber)
+            self.checkFT = True
 
     def __str__(self):
         strRep = ""
@@ -98,6 +113,26 @@ def outdatedCARError():
     window.mainloop()
     return Jerry.stop
 
+def generalError(eMsg):
+    window = Tk()
+    w = 275
+    h = 250
+    ws = window.winfo_screenwidth() 
+    hs = window.winfo_screenheight() 
+    x = (ws/2) - (w/2)
+    y = (hs/2) - (h/2)
+    window.geometry('%dx%d+%d+%d' % (w, h, x, y))
+    def onExitStop():
+        window.destroy()
+    window.configure(background = "light cyan")
+    msg = Label(window, text = eMsg, font = ("times", 14), wraplength = w,
+                bg = "light cyan")
+    cancel = Button(window, text = "Exit", font = ("Bold"), width = 9, height = 3,
+                    command = onExitStop, bg = "pale green")
+    msg.pack(side = TOP)
+    cancel.pack(side = BOTTOM)
+    window.mainloop()
+    return None
 
 def goHome():
     CAR = "Custom Associates Report.pdf"
@@ -127,20 +162,26 @@ def queuePrintJob(pageNum, ws, wb):
     ws["Q1"] = pageNum
     wb.save('../Pre-Room Check List' + str(pageNum) + '.xlsx')
     wb.close()
-    wb = load_workbook('res/Pre-Room Check List.xlsx')
+    wb = load_workbook('Pre-Room Check List.xlsx')
     ws = wb["Sheet1"]
 
 if __name__ == "__main__":
     try:
-        AHK = pickle.load(open("res/housekeepers.p", 'rb'))
+        AHK = pickle.load(open("housekeepers.p", 'rb'))
         allHouseKeepers = AHK.housekeepers
     except:
         allHouseKeepers = []
+    try:
+        covidRules = pickle.load(open("settings.p", 'rb'))
+    except:
+        covidRules = 0
 
-    program = launchHKGUI(allHouseKeepers)
+    program = launchHKGUI(allHouseKeepers, covidRules)
 
     houseKeepers = program.activeHousekeepers
     allHouseKeepers = program.allHouseKeepers
+    covidRules = program.covidRules
+    #print(covidRules)
 
     if not houseKeepers:
         sys.exit()
@@ -153,22 +194,29 @@ if __name__ == "__main__":
     ##################################################################
     #   USES TIKA LIBRARY TO EXTRACT TEXT FROM PDF
     ##################################################################
+    #try:
     parsed = parser.from_file("../Custom Associates Report.pdf")
     rawText = parsed["content"]
-
+    
 
     ##################################################################
     #   USING RAWTEXT, MANUALLY SPLITS BY LINES, IGNORING EMPTY LINES
     ##################################################################
-    line = ""
-    linedText = []
-    for char in rawText:
-        if char == '\n':
-            if line: linedText.append(line)
-            line = ""
-        else:
-            line += char
-
+    try:
+        line = ""
+        linedText = []
+        for char in rawText:
+            if char == '\n':
+                if line: linedText.append(line)
+                line = ""
+            else:
+                line += char
+    except:
+        generalError("There was an error communicating with a Java toolkit."
+                     + " Please try restarting this computer to resolve the"
+                     + " issue. If there is an update to Windows pending it is"
+                     + " likely the culprit so please check for updates.")
+        sys.exit()
 
     ##################################################################
     #   VERIFIES THAT CAR IS CURRENT BASED ON PRINTED DATETIME
@@ -208,39 +256,66 @@ if __name__ == "__main__":
     ##################################################################
     #   GENERATES ONE ROOM OBJ PER LINE OF ROOM DATA
     ##################################################################
-    roomTypes = ["KING","QQ","CK","CQ", "ACK", "ACQ"]
-    cleanTypes = ["Stay", "C/O"]
-    rooms = []
-    for line in relevantLines[:-1]:
-        roomNumber = int(line[-3:])
-        if "No Service" in line: continue
-        if "Dirty" in line:
-            roomType = [x for x in roomTypes if x in line]
+    dayList = ["mon", "tue", "wed", "thu", "fri", "sat", "sun", "monday",
+           "mondays", "mons", "tuesdays", "tues", "tuesday", "wednesday",
+           "weds", "wednesdays", "thursday", "thursdays", "thur", "thurs",
+           "friday", "fridays", "fris", "saturday", "saturdays", "sats",
+           "sunday", "sundays","suns"]
+    try:
+        roomTypes = ["KING","QQ","CK","CQ", "ACK", "ACQ", "SQ", "UF"]
+        cleanTypes = ["Stay", "C/O", "Dirty"]
+        rooms = []
+        for line in relevantLines[:-1]:
+            roomNumber = int(line[-3:])
             longStay = False
             arrival = False
-            if "Yes" in line:
-                arrival = True
-            cleanType = ["C/O"]
-            checkInDate = "07/12/1996"
-            room = Room(roomNumber, roomType[0], cleanType[0], arrival, longStay, checkInDate)
-            rooms.append(room)
-        else:
-            roomType = [x for x in roomTypes if x in line]
-            cleanType = [x for x in cleanTypes if x in line]
-            yesCounter = line.count("Yes")
-            if yesCounter == 1:
-                arrival = False
-                longStay = True
-            elif yesCounter == 2:
-                arrival = True
-                longStay = False
+            checkFT = False
+            #if "No Service" in line: continue
+            if "Dirty" in line:
+                roomType = [x for x in roomTypes if x in line]
+                if "Yes" in line:
+                    arrival = True
+                cleanType = ["Dirty"]
+                checkInDate = "07/12/1996"
+                room = Room(roomNumber, roomType[0], cleanType[0], arrival, longStay, checkInDate)
+                rooms.append(room)
             else:
-                arrival = False
-                longStay = False
-            checkInDate = line.split()[0]
-            room = Room(roomNumber, roomType[0], cleanType[0], arrival, longStay, checkInDate)
-            room.checkBlueness()
-            rooms.append(room)
+                roomType = [x for x in roomTypes if x in line]
+                cleanType = [x for x in cleanTypes if x in line]
+                yesCounter = line.count("Yes")
+                daysDefined = []
+                for day in dayList:
+                    if day in line.lower():
+                        #print(day)
+                        daysDefined.append(day)
+                        if day[0:3] == dayList[wday]:
+                            #print(day)
+                            longStay = True
+                        if day[0:3] == dayList[wday-1]:
+                            #print(day)
+                            checkFT = True
+                if not daysDefined and yesCounter == 1:
+                    longStay = True
+                elif yesCounter == 2:
+                    arrival = True
+                checkInDate = line.split()[0]
+                room = Room(roomNumber, roomType[0], cleanType[0], arrival, longStay, checkInDate, checkFT)
+                
+                if not daysDefined:
+                    room.checkBlueness()
+                    room.checkOrangeness()
+                if "No Service" in line or daysDefined:
+                    if room.longStay: rooms.append(room)
+                    if room.checkFT: rooms.append(room)
+                else: 
+                    rooms.append(room)
+    except:
+        generalError("There was an error interpreting the Custom Associates."
+                     + " Report. Unfortunately, this means housekeeping will"
+                     + " need to be assigned manually today. Please e-mail"
+                     + " the CAR pdf as an attachment to:\n"
+                     + "andresg8@uci.edu")
+        sys.exit()
 
     ##################################################################
     #   Partition rooms as being either a towelTidy or a checkOut
@@ -271,23 +346,25 @@ if __name__ == "__main__":
     coPerHK = smoothDivision(len(checkOuts), numHK)
     coPerHK.reverse()
     roomCounter = 0
-    for hk in range(len(roomsPerHK)):
-        for i in range(coPerHK[hk]):
-            roomsPerHK[hk].append(checkOuts[roomCounter])
-            roomCounter += 1
-            if roomCounter > len(checkOuts):
-                print("Partitioning Error!")
-                break
+    if coPerHK:
+        for hk in range(len(roomsPerHK)):
+            for i in range(coPerHK[hk]):
+                roomsPerHK[hk].append(checkOuts[roomCounter])
+                roomCounter += 1
+                if roomCounter > len(checkOuts):
+                    print("Partitioning Error!")
+                    break
 
     ttPerHK = smoothDivision(len(towelTidies), numHK)
     roomCounter = 0
-    for hk in range(len(roomsPerHK)):
-        for i in range(ttPerHK[hk]):
-            roomsPerHK[hk].append(towelTidies[roomCounter])
-            roomCounter += 1
-            if roomCounter > len(towelTidies):
-                print("Partitioning Error!")
-                break
+    if ttPerHK:
+        for hk in range(len(roomsPerHK)):
+            for i in range(ttPerHK[hk]):
+                roomsPerHK[hk].append(towelTidies[roomCounter])
+                roomCounter += 1
+                if roomCounter > len(towelTidies):
+                    print("Partitioning Error!")
+                    break
 
 
     ##################################################################
@@ -298,20 +375,32 @@ if __name__ == "__main__":
     #   the user is given the peace of mind that they will be left with
     #   ONLY the HK sheets relevant to the day they're assigning. 
     ##################################################################
-    true_cwd = os.getcwd()
-    os.chdir("../")
-    if os.getcwd().endswith("HK Assigner"):
-        cwd = os.getcwd()
-        for file in os.listdir(cwd):
-            if file.endswith(".xlsx"):
-                os.remove(file)
-    os.chdir(true_cwd)
+    try:
+        true_cwd = os.getcwd()
+        os.chdir("../")
+        if os.getcwd().endswith("HK Assigner"):
+            cwd = os.getcwd()
+            for file in os.listdir(cwd):
+                if file.endswith(".xlsx"):
+                    os.remove(file)
+        os.chdir(true_cwd)
+    except:
+        generalError("There was an error when clearing the previous day's excel"
+                     + " sheets. Make sure none of yesterdays HK excel sheets are"
+                     + " open on any of the network's computers and try again.")
+        sys.exit()
 
     yellowFill = PatternFill(start_color = '00FFFF00',
                                 end_color = '00FFFF00',
                                 fill_type = "solid")
     blueFill = PatternFill(start_color = '0037CBFF',
                                 end_color = '0037CBFF',
+                                fill_type = "solid")
+    greenFill = PatternFill(start_color = '005EF600',
+                                end_color = '005EF600',
+                                fill_type = "solid")
+    orangeFill = PatternFill(start_color = '00FFC000',
+                                end_color = '00FFC000',
                                 fill_type = "solid")
     noFill = PatternFill(start_color = '00FFFFFF',
                                 end_color = '00FFFFFF',
@@ -321,7 +410,7 @@ if __name__ == "__main__":
     i = 0
     for hk in roomsPerHK:
         name = houseKeepers[i].name
-        wb = load_workbook("res/HK Template.xlsx")
+        wb = load_workbook("HK Template.xlsx")
         ws = wb["Sheet1"]
         aggregateRoomScore = 0
         ws["A1"] = name
@@ -329,26 +418,42 @@ if __name__ == "__main__":
         space_added = False
         for room in hk:
             tipo = room.cleanType
-            if room.cleanType != "C/O": tipo = "TT"
+            if room.cleanType not in["C/O", "Dirty"]: tipo = "TT"
             if tipo == "TT" and not space_added:
                 r += 1
                 space_added = True
             row = str(r)
             camas = room.roomType
-            if room.roomType in ("CK", "ACK", "KING"): camas += " - 1"
+            if room.roomType in ("CK", "ACK", "KING", "SQ"): camas += " - 1"
             if room.roomType in ("CQ", "ACQ", "QQ"): camas += " - 2"
             ws["A" + row] = camas
             ws["B" + row] = room.roomNumber
-            ws["C" + row] = tipo
+            printipo = "C/O"
+            if tipo == "TT": printipo = "TT"
+            ws["C" + row] = printipo
 
-            if tipo == "C/O" and room.arrival:
-                ws["A" + row].fill = yellowFill
-                ws["B" + row].fill = yellowFill
-                ws["C" + row].fill = yellowFill
+            if covidRules:
+                if tipo in ["C/O"]:
+                    ws["A" + row].fill = orangeFill
+                    ws["B" + row].fill = orangeFill
+                    ws["C" + row].fill = orangeFill
+                elif tipo in ["Dirty"]:
+                    ws["A" + row].fill = yellowFill
+                    ws["B" + row].fill = yellowFill
+                    ws["C" + row].fill = yellowFill
+            else:
+                if tipo in ["C/O", "Dirty"] and room.arrival:
+                    ws["A" + row].fill = yellowFill
+                    ws["B" + row].fill = yellowFill
+                    ws["C" + row].fill = yellowFill
             if tipo == "TT" and room.longStay:
                 ws["A" + row].fill = blueFill
                 ws["B" + row].fill = blueFill
                 ws["C" + row].fill = blueFill
+            if tipo == "TT" and room.checkFT:
+                ws["A" + row].fill = greenFill
+                ws["B" + row].fill = greenFill
+                ws["C" + row].fill = greenFill
             
             aggregateRoomScore += room.roomNumber
             r += 1
@@ -363,7 +468,7 @@ if __name__ == "__main__":
         wb.close()
 
 
-    wb = load_workbook('res/Pre-Room Check List.xlsx')
+    wb = load_workbook('Pre-Room Check List.xlsx')
     ws = wb["Sheet1"]
 
     letters = "BCDEFGHIJKL" 
@@ -375,7 +480,7 @@ if __name__ == "__main__":
     for hk in roomsPerHK:
         name = houseKeepers[i].name
         for room in hk:
-            if room.cleanType == "C/O":
+            if room.cleanType in ["C/O", "Dirty"]:
                 ws[letters[l] + "2"] = room.roomNumber
                 ws[letters[l] + "3"] = name[:3]
                 if room.arrival:
@@ -395,8 +500,8 @@ if __name__ == "__main__":
             ws[letters[i] + "3"] = ""
             ws[letters[i] + "2"].fill = noFill
         queuePrintJob(pageNum, ws, wb)
-
-    wb = load_workbook('res/Laundry Min.xlsx')
+    
+    wb = load_workbook('Laundry Min.xlsx')
     wb.save('../Laundry Min.xlsx')
     wb.close()
 
@@ -404,6 +509,7 @@ if __name__ == "__main__":
 
 
     AHK = AllHouseKeepers(allHouseKeepers)
-    pickle.dump(AHK, open("res/housekeepers.p", 'wb'))
+    pickle.dump(AHK, open("housekeepers.p", 'wb'))
+    pickle.dump(covidRules, open("settings.p", 'wb'))
     print("done!")
     sys.exit()
